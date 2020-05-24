@@ -40,6 +40,7 @@ namespace BPFacialRecognition {
         private FaceTracker faceTracker;
         private ThreadPoolTimer frameProcessingTimer;
         private SemaphoreSlim frameProcessingSemaphore = new SemaphoreSlim(1);
+
         #endregion
 
         private DisplayRequest displayRequest = new DisplayRequest();
@@ -153,27 +154,33 @@ namespace BPFacialRecognition {
         /// Called when user hits physical or vitual doorbell buttons. Captures photo of current webcam view and sends it to Oxford for facial recognition processing.
         /// </summary>
         private async Task DoorbellPressed() {
+            bool showResult = true;
+
             // Display analysing visitors grid to inform user that doorbell press was registered
             AnalysingVisitorGrid.Visibility = Visibility.Visible;
 
             List<string> recognizedVisitors = new List<string>();
-
             if (this.camera.Initialized && this.initializedFaceApi) {
                 StorageFile image = await this.camera.CapturePhoto();
 
                 try {
                     recognizedVisitors = await FaceAPIHelper.IsFaceInWhitelist(image);
                 }
-                catch (FaceRecognitionException fe) {
-                    switch (fe.ExceptionType) {
-                        // Fails and catches as a FaceRecognitionException if no face is detected in the image
-                        case FaceRecognitionExceptionType.NoFaceDetected:
-                            Debug.WriteLine("WARNING: No face detected in this image.");
-                            break;
-                    }
+                catch (FaceRecognitionException e) {
+                    MessageDialog diag = new MessageDialog($"The facial recognition failed: {e.ExceptionType}", "Recognition failed");
+                    await diag.ShowAsync();
+
+                    showResult = false;
                 }
-                catch (FaceAPIException faceAPIEx) {
-                    Debug.WriteLine("FaceAPIException in IsFaceInWhitelist(): " + faceAPIEx.ErrorMessage);
+                catch (FaceAPIException e) {
+                    if (e.ErrorMessage.Contains("exceeded rate limit")) {
+                        MessageDialog diag = new MessageDialog(e.ErrorMessage, "Exceeded Limit");
+                        await diag.ShowAsync();
+
+                        showResult = false;
+                    }
+
+                    Debug.WriteLine(e);
                 }
                 catch {
                     // General error. This can happen if there are no visitors authorized in the whitelist
@@ -182,7 +189,7 @@ namespace BPFacialRecognition {
 
                 if (recognizedVisitors.Count > 0)
                     WelcomeUser(recognizedVisitors[0]);
-                else
+                else if (showResult)
                     UnknownUser();
             }
             else {
@@ -288,13 +295,14 @@ namespace BPFacialRecognition {
         private void UpdateWhitelistedVisitorsGrid() {
             WhitelistedUsersGrid.ItemsSource = new List<Visitor>();
             WhitelistedUsersGrid.ItemsSource = this.whitelistedVisitors;
-            OxfordLoadingRing.Visibility = Visibility.Collapsed;
+            UserLoadingRing.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
         /// Triggered when the user selects a visitor in the WhitelistedUsersGrid 
         /// </summary>
         private async void WhitelistedUsersGrid_ItemClick(object sender, ItemClickEventArgs e) {
+            await CleanupCameraAsync();
             this.Frame.Navigate(typeof(UserProfilePage), new UserProfileObject(e.ClickedItem as Visitor, this.camera));
         }
 
@@ -306,7 +314,7 @@ namespace BPFacialRecognition {
             Application.Current.Exit();
         }
 
-        #region Face TRacking
+        #region Face Tracking
 
 
 

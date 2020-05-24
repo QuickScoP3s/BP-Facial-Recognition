@@ -12,45 +12,42 @@
                 <EntranceThemeTransition/>
             </TransitionCollection>
         </Grid.ChildrenTransitions>
-        
+
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="6*" />
         </Grid.RowDefinitions>
-        
+
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="6*" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        
+
+        <Button x:Name="BackButton"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Click="BackButton_Click"
+                Style="{ThemeResource IconButtonStyle}">
+
+            <SymbolIcon Symbol="Home" RenderTransformOrigin="0.5,0.5">
+                <SymbolIcon.RenderTransform>
+                    <CompositeTransform ScaleX="2" ScaleY="2"/>
+                </SymbolIcon.RenderTransform>
+            </SymbolIcon>
+        </Button>
+
         <TextBlock x:Name="VisitorNameBlock" Text="Visitor Name" Grid.Column="1" FontSize="80" VerticalAlignment="Center"/>
-        
-        <StackPanel Margin="0, 10" Grid.Row="0" Grid.Column="1" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-            <CaptureElement x:Name='WebcamFeed'/>
-            <Image x:Name="IdPhotoControl" Visibility="Collapsed" />
-        </StackPanel>
-        
-        <Grid x:Name="UserNameGrid" Grid.Column="1" Grid.Row="1" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*" />
-                <ColumnDefinition Width=".75*" />
-                <ColumnDefinition Width=".6*" />
-            </Grid.ColumnDefinitions>
-            
-            <TextBox x:Name="UserNameBox" Grid.Column="0" Grid.Row="1" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="32" Margin="20,0" PlaceholderText="Photo ID Name (ex: John Doe)"/>
-            <Button x:Name="ConfirmButton" Content="Confirm" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32"/>
-            <Button x:Name="CancelButton" Content="Cancel" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32"/>
-        </Grid>
-        
+
+        <CaptureElement x:Name='WebcamFeed' Grid.Column="2" Loaded="WebcamFeed_Loaded"/>
+
         <GridView x:Name="PhotoGrid" Grid.Row="1" Grid.Column="1" Loaded="PhotoGrid_Loaded"/>
     </Grid>
-    
+
     <Page.BottomAppBar>
-        <CommandBar IsOpen="True" IsSticky="True" IsEnabled="True" Foreground="#FF7C3C3C" RequestedTheme="Dark">
-            <AppBarButton x:Name="AddButton" Label="Add Photo" Icon="Add" Foreground="#FFFFFFFF" Width="64" Tapped="AddButton_Tapped"/>
-            <AppBarButton x:Name="DeleteButton" Label="Delete User" Icon="Delete" Foreground="#FFFFFFFF" Width="64" Tapped="DeleteButton_Tapped"/>
-            <AppBarButton x:Name="HomeButton" Label="Go Home" Icon="Home" Foreground="#FFFFFFFF" Width="64" Tapped="HomeButton_Tapped"/>
+        <CommandBar>
+            <AppBarButton x:Name="AddButton" Label="Capture Photo" Icon="Camera" Tapped="AddButton_Tapped"/>
+            <AppBarButton x:Name="DeleteButton" Label="Delete User" Icon="Delete" Tapped="DeleteButton_Tapped"/>
         </CommandBar>
     </Page.BottomAppBar>
 </Page>

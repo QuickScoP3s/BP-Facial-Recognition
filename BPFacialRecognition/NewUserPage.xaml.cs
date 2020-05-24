@@ -58,24 +58,10 @@ namespace BPFacialRecognition {
         private async void WebcamFeed_Loaded(object sender, RoutedEventArgs e) {
             if (!IsPreviewing) {
                 try {
-                    await StartPreviewAsync();
+                    WebcamFeed.Source = this.camera.MediaCapture;
+                    await this.camera.StartCameraPreview();
                 }
-                catch (Exception) {
-                    this.camera.MediaCapture.CaptureDeviceExclusiveControlStatusChanged += MediaCapture_CaptureDeviceExclusiveControlStatusChanged;
-                }
-            }
-        }
-
-        private async Task StartPreviewAsync() {
-            WebcamFeed.Source = this.camera.MediaCapture;
-            await this.camera.StartCameraPreview();
-        }
-
-        private async void MediaCapture_CaptureDeviceExclusiveControlStatusChanged(Windows.Media.Capture.MediaCapture sender, Windows.Media.Capture.MediaCaptureDeviceExclusiveControlStatusChangedEventArgs args) {
-            if (args.Status == MediaCaptureDeviceExclusiveControlStatus.ExclusiveControlAvailable && !IsPreviewing) {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () => {
-                    await StartPreviewAsync();
-                });
+                catch (Exception) { }
             }
         }
 
@@ -105,7 +91,7 @@ namespace BPFacialRecognition {
             // Capture current frame from webcam, store it in temporary storage and set the source of a BitmapImage to said photo
             this.currentIdPhotoFile = await this.camera.CapturePhoto();
 
-            using var photoStream = await this.currentIdPhotoFile.OpenAsync(FileAccessMode.ReadWrite);
+            using var photoStream = await this.currentIdPhotoFile.OpenAsync(FileAccessMode.Read);
 
             BitmapImage idPhotoImage = new BitmapImage();
             await idPhotoImage.SetSourceAsync(photoStream);
@@ -138,7 +124,7 @@ namespace BPFacialRecognition {
 
                 FaceAPIHelper.AddUserToWhitelist(UserNameBox.Text, currentFolder);
 
-                await this.camera.StopCameraPreview();
+                await CleanupCameraAsync();
 
                 // Navigate back to MainPage
                 this.Frame.GoBack();

@@ -5,6 +5,7 @@ using System;
 using System.Threading.Tasks;
 
 using Windows.Storage;
+using Windows.UI.Core;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media.Imaging;
@@ -15,11 +16,15 @@ namespace BPFacialRecognition {
     /// An empty page that can be used on its own or navigated to within a Frame.
     /// </summary>
     public sealed partial class UserProfilePage : Page {
+
+        private CameraHelper camera;
+
         private Visitor currentUser;
         private Image[] userIDImages;
         private double idImageMaxWidth = 0;
 
-        private CameraHelper webcam;
+        private bool CanPreview => (this.camera != null && this.camera.Initialized) && this.camera.MediaCapture != null;
+        private bool IsPreviewing => WebcamFeed.Source != null;
 
         public UserProfilePage() {
             this.InitializeComponent();
@@ -40,7 +45,7 @@ namespace BPFacialRecognition {
                 VisitorNameBlock.Text = currentUser.Name;
 
                 // Sets the local WebcamHelper as the passed through intialized one
-                webcam = userProfileParameters.WebcamHelper;
+                camera = userProfileParameters.WebcamHelper;
             }
             catch {
                 // Something went wrong... It's likely the page was navigated to without a Visitor parameter. Navigate back to MainPage
@@ -51,6 +56,16 @@ namespace BPFacialRecognition {
         private void PhotoGrid_Loaded(object sender, Windows.UI.Xaml.RoutedEventArgs e) {
             // Populate photo grid with visitor ID photos:
             PopulatePhotoGrid();
+        }
+
+        private async void WebcamFeed_Loaded(object sender, Windows.UI.Xaml.RoutedEventArgs e) {
+            if (!IsPreviewing) {
+                try {
+                    WebcamFeed.Source = this.camera.MediaCapture;
+                    await this.camera.StartCameraPreview();
+                }
+                catch (Exception) { }
+            }
         }
 
         /// <summary>
@@ -84,7 +99,7 @@ namespace BPFacialRecognition {
         /// </summary>
         private async void AddButton_Tapped(object sender, TappedRoutedEventArgs e) {
             // Captures photo from current webcam stream
-            StorageFile imageFile = await webcam.CapturePhoto();
+            StorageFile imageFile = await camera.CapturePhoto();
 
             // Moves the captured file to the current user's ID image folder
             await imageFile.MoveAsync(currentUser.ImageFolder);
@@ -100,16 +115,33 @@ namespace BPFacialRecognition {
             await currentUser.ImageFolder.DeleteAsync();
             FaceAPIHelper.RemoveUserFromWhitelist(currentUser.Name);
 
+            await CleanupCameraAsync();
+
+            // Navigate to MainPage
+            Frame.GoBack();
+        }
+
+        private async void BackButton_Click(object sender, Windows.UI.Xaml.RoutedEventArgs e) {
+            await CleanupCameraAsync();
+
             // Navigate to MainPage
             Frame.GoBack();
         }
 
         /// <summary>
-        /// Triggered when the user clicks the home button located in the app bar
+        /// Cleanup resource access to the camera
         /// </summary>
-        private async void HomeButton_Tapped(object sender, TappedRoutedEventArgs e) {
-            // Navigate to MainPage
-            Frame.GoBack();
+        /// <returns></returns>
+        private async Task CleanupCameraAsync() {
+            if (CanPreview) {
+                if (IsPreviewing)
+                    await this.camera.StopCameraPreview();
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => {
+                    WebcamFeed.Source = null;
+                });
+            }
+
         }
     }
 }

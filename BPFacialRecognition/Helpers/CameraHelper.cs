@@ -1,12 +1,18 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 
 using Windows.Devices.Enumeration;
+using Windows.Foundation;
+using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
+using Windows.Media.FaceAnalysis;
 using Windows.Media.MediaProperties;
 using Windows.Storage;
+using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
 
 namespace BPFacialRecognition.Helpers {
@@ -18,6 +24,8 @@ namespace BPFacialRecognition.Helpers {
         public MediaCapture MediaCapture { get; private set; }
 
         public bool Initialized { get; private set; } = false;
+
+        private FaceDetector faceDetector;
 
         /// <summary>
         /// Asynchronously initializes webcam feed
@@ -38,6 +46,8 @@ namespace BPFacialRecognition.Helpers {
 
                 MediaCapture = new MediaCapture();
                 await MediaCapture.InitializeAsync(settings);
+
+                faceDetector = await FaceDetector.CreateAsync();
 
                 Initialized = true;
             }
@@ -93,12 +103,70 @@ namespace BPFacialRecognition.Helpers {
         /// File is stored in a temporary folder and could be deleted by the system at any time.
         /// </summary>
         public async Task<StorageFile> CapturePhoto() {
+            var bitmap = await CaptureBitmapsAsync();
+            var cropRegion = await CreateCropRegion(bitmap.software);
+
+            var cropped = bitmap.writeable.Crop(cropRegion);
+
             string fileName = GenerateNewFileName() + ".jpg";
             StorageFile file = await ApplicationData.Current.TemporaryFolder.CreateFileAsync(fileName, CreationCollisionOption.GenerateUniqueName);
 
-            await MediaCapture.CapturePhotoToStorageFileAsync(ImageEncodingProperties.CreateJpeg(), file);
+            using (var stream = await file.OpenAsync(FileAccessMode.ReadWrite)) {
+                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
+
+                Stream pixelStream = cropped.PixelBuffer.AsStream();
+                byte[] pixels = new byte[pixelStream.Length];
+                await pixelStream.ReadAsync(pixels, 0, pixels.Length);
+
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore, (uint)cropped.PixelWidth, (uint)cropped.PixelHeight,
+                    96.0,
+                    96.0,
+                    pixels);
+
+                await encoder.FlushAsync();
+            }
 
             return file;
+        }
+
+        private async Task<(SoftwareBitmap software, WriteableBitmap writeable)> CaptureBitmapsAsync() {
+            using var ras = new InMemoryRandomAccessStream();
+
+            var encoding = ImageEncodingProperties.CreateJpeg();
+            await MediaCapture.CapturePhotoToStreamAsync(encoding, ras);
+
+            BitmapDecoder decoder = await BitmapDecoder.CreateAsync(ras);
+            SoftwareBitmap sw = await decoder.GetSoftwareBitmapAsync();
+
+            var writeable = new WriteableBitmap(sw.PixelWidth, sw.PixelHeight);
+            sw.CopyToBuffer(writeable.PixelBuffer);
+
+            return (sw, writeable);
+        }
+
+        private async Task<Rect> CreateCropRegion(SoftwareBitmap bitmap) {
+            const BitmapPixelFormat InputPixelFormat = BitmapPixelFormat.Gray8;
+            if (!FaceDetector.IsBitmapPixelFormatSupported(InputPixelFormat))
+                return new Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight);
+
+            using var detectorInput = SoftwareBitmap.Convert(bitmap, InputPixelFormat);
+
+            var faces = await faceDetector.DetectFacesAsync(detectorInput);
+            var first = faces.FirstOrDefault();
+
+            if (first == null)
+                return new Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight);
+
+            var faceBox = first.FaceBox;
+            int margin = 150;
+
+            int x = Math.Max(0, (int)faceBox.X - margin);
+            int y = Math.Max(0, (int)faceBox.Y - margin);
+
+            int width = Math.Min(bitmap.PixelWidth - x, (int) faceBox.Width + (margin * 2));
+            int height = Math.Min(bitmap.PixelHeight - y, (int) faceBox.Height + (margin * 2));
+
+            return new Rect(x, y, width, height);
         }
 
         /// <summary>

@@ -236,7 +236,11 @@ namespace BPFacialRecognition.FacialRecognition {
         /// <param name="faceId"></param>
         /// <returns></returns>
         private async Task RemoveFace(Guid personId, Guid faceId) {
-            await _faceApiClient.DeletePersonFaceAsync(WhitelistId, personId, faceId);
+            try {
+                await _faceApiClient.DeletePersonFaceAsync(WhitelistId, personId, faceId);
+            }
+            catch { }
+
             _whitelist.RemoveFace(personId, faceId);
         }
 
