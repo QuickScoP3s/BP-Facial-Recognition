@@ -15,12 +15,12 @@ namespace BPFacialRecognition.Objects
         /// <summary>
         /// An initialized WebcamHelper 
         /// </summary>
-        public WebcamHelper WebcamHelper { get; set; }
+        public CameraHelper WebcamHelper { get; set; }
 
         /// <summary>
         /// Initializes a new UserProfileObject with relevant information
         /// </summary>
-        public UserProfileObject(Visitor visitor, WebcamHelper webcamHelper)
+        public UserProfileObject(Visitor visitor, CameraHelper webcamHelper)
         {
             Visitor = visitor;
             WebcamHelper = webcamHelper;

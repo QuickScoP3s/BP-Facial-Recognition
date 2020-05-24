@@ -10,6 +10,8 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 
 using Windows.Storage;
+using Windows.System.Display;
+using Windows.UI.Core;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -18,10 +20,10 @@ using Windows.UI.Xaml.Navigation;
 
 namespace BPFacialRecognition {
     public sealed partial class MainPage : Page {
-        // Webcam Related Variables:
-        private WebcamHelper webcam;
 
-        // Oxford Related Variables:
+        private DisplayRequest displayRequest = new DisplayRequest();
+
+        private CameraHelper camera;
         private bool initializedFaceApi = false;
 
         // Whitelist Related Variables:
@@ -34,6 +36,10 @@ namespace BPFacialRecognition {
         // GUI Related Variables:
         private double visitorIDPhotoGridMaxWidth = 0;
 
+
+        private bool CanPreview => (this.camera != null && this.camera.Initialized) && this.camera.MediaCapture != null;
+        private bool IsPreviewing => WebcamFeed.Source != null;
+
         /// <summary>
         /// Called when the page is first navigated to.
         /// </summary>
@@ -43,9 +49,8 @@ namespace BPFacialRecognition {
             // Causes this page to save its state when navigating to other pages
             this.NavigationCacheMode = NavigationCacheMode.Enabled;
 
-            if (this.initializedFaceApi == false) {
+            if (!this.initializedFaceApi)
                 InitializeFaceApi();
-            }
 
             // If user has set the DisableLiveCameraFeed within Constants.cs to true, disable the feed:
             if (GeneralConstants.DisableLiveCameraFeed) {
@@ -62,9 +67,8 @@ namespace BPFacialRecognition {
         /// Triggered every time the page is navigated to.
         /// </summary>
         protected override void OnNavigatedTo(NavigationEventArgs e) {
-            if (this.initializedFaceApi) {
+            if (this.initializedFaceApi)
                 UpdateWhitelistedVisitors();
-            }
         }
 
         /// <summary>
@@ -72,8 +76,6 @@ namespace BPFacialRecognition {
         /// </summary>
         public async void InitializeFaceApi() {
             this.initializedFaceApi = await FaceAPIHelper.Initialize();
-
-            // Populates UI grid with whitelisted visitors
             UpdateWhitelistedVisitors();
         }
 
@@ -82,27 +84,16 @@ namespace BPFacialRecognition {
         /// If no WebcamHelper has been created, it creates one. Otherwise, simply restarts webcam preview feed on page.
         /// </summary>
         private async void WebcamFeed_Loaded(object sender, RoutedEventArgs e) {
-            if (this.webcam == null || !this.webcam.IsInitialized()) {
-                // Initialize Webcam Helper
-                this.webcam = new WebcamHelper();
-                await this.webcam.InitializeCameraAsync();
-
-                // Set source of WebcamFeed on MainPage.xaml
-                WebcamFeed.Source = this.webcam.mediaCapture;
-
-                // Check to make sure MediaCapture isn't null before attempting to start preview. Will be null if no camera is attached.
-                if (WebcamFeed.Source != null) {
-                    // Start the live feed
-                    await this.webcam.StartCameraPreview();
-                }
+            if (this.camera == null || !this.camera.Initialized) {
+                this.camera = new CameraHelper();
+                await this.camera.InitializeCameraAsync();
             }
-            else if (this.webcam.IsInitialized()) {
-                WebcamFeed.Source = this.webcam.mediaCapture;
 
-                // Check to make sure MediaCapture isn't null before attempting to start preview. Will be null if no camera is attached.
-                if (WebcamFeed.Source != null) {
-                    await this.webcam.StartCameraPreview();
-                }
+            if (CanPreview) {
+                WebcamFeed.Source = this.camera.MediaCapture;
+                await this.camera.StartCameraPreview();
+
+                this.displayRequest.RequestActive();
             }
         }
 
@@ -130,17 +121,12 @@ namespace BPFacialRecognition {
             // Display analysing visitors grid to inform user that doorbell press was registered
             AnalysingVisitorGrid.Visibility = Visibility.Visible;
 
-            // List to store visitors recognized by Oxford Face API
-            // Count will be greater than 0 if there is an authorized visitor at the door
             List<string> recognizedVisitors = new List<string>();
 
-            // Confirms that webcam has been properly initialized and oxford is ready to go
-            if (this.webcam.IsInitialized() && this.initializedFaceApi) {
-                // Stores current frame from webcam feed in a temporary folder
-                StorageFile image = await this.webcam.CapturePhoto();
+            if (this.camera.Initialized && this.initializedFaceApi) {
+                StorageFile image = await this.camera.CapturePhoto();
 
                 try {
-                    // Oxford determines whether or not the visitor is on the Whitelist and returns true if so
                     recognizedVisitors = await FaceAPIHelper.IsFaceInWhitelist(image);
                 }
                 catch (FaceRecognitionException fe) {
@@ -159,22 +145,18 @@ namespace BPFacialRecognition {
                     Debug.WriteLine("WARNING: Oxford just threw a general expception.");
                 }
 
-                if (recognizedVisitors.Count > 0) {
-                    // If everything went well and a visitor was recognized, unlock the door:
-                    UnlockDoor(recognizedVisitors[0]);
-                }
-                else {
-                    MessageDialog diag = new MessageDialog("I'm sorry, you were not recognized...", "Do I know you?");
-                    await diag.ShowAsync();
-                }
+                if (recognizedVisitors.Count > 0)
+                    WelcomeUser(recognizedVisitors[0]);
+                else
+                    UnknownUser();
             }
             else {
-                if (!this.webcam.IsInitialized())
-                    Debug.WriteLine("Unable to analyze visitor at door as the camera failed to initlialize properly.");
+                if (!this.camera.Initialized)
+                    Debug.WriteLine("Unable to analyze visitor as the camera failed to initlialize properly.");
 
                 if (!this.initializedFaceApi)
-                    Debug.WriteLine("Unable to analyze visitor at door as Oxford Facial Recogntion is still initializing.");
-                
+                    Debug.WriteLine("Unable to analyze visitor as Facial Recogntion is still initializing.");
+
             }
 
             this.doorbellJustPressed = false;
@@ -184,8 +166,13 @@ namespace BPFacialRecognition {
         /// <summary>
         /// Unlocks door and greets visitor
         /// </summary>
-        private async void UnlockDoor(string visitorName) {
-            MessageDialog diag = new MessageDialog($"Welcome {visitorName}", "Welcome!");
+        private async void WelcomeUser(string userName) {
+            MessageDialog diag = new MessageDialog($"Welcome {userName}", "Welcome!");
+            await diag.ShowAsync();
+        }
+
+        private async void UnknownUser() {
+            MessageDialog diag = new MessageDialog("I'm sorry, you were not recognized...", "Do I know you?");
             await diag.ShowAsync();
         }
 
@@ -193,11 +180,8 @@ namespace BPFacialRecognition {
         /// Called when user hits vitual add user button. Navigates to NewUserPage page.
         /// </summary>
         private async void NewUserButton_Click(object sender, RoutedEventArgs e) {
-            // Stops camera preview on this page, so that it can be started on NewUserPage
-            await this.webcam.StopCameraPreview();
-
-            //Navigates to NewUserPage, passing through initialized WebcamHelper object
-            this.Frame.Navigate(typeof(NewUserPage), this.webcam);
+            await CleanupCameraAsync();
+            this.Frame.Navigate(typeof(NewUserPage), this.camera);
         }
 
         /// <summary>
@@ -207,10 +191,28 @@ namespace BPFacialRecognition {
             // If the whitelist isn't already being updated, update the whitelist
             if (!this.currentlyUpdatingWhitelist) {
                 this.currentlyUpdatingWhitelist = true;
+
                 await UpdateWhitelistedVisitorsList();
                 UpdateWhitelistedVisitorsGrid();
+
                 this.currentlyUpdatingWhitelist = false;
             }
+        }
+
+        /// <summary>
+        /// Cleanup resource access to the camera
+        /// </summary>
+        /// <returns></returns>
+        private async Task CleanupCameraAsync() {
+            if (CanPreview) {
+                if (IsPreviewing)
+                    await this.camera.StopCameraPreview();
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => {
+                    WebcamFeed.Source = null;
+                });
+            }
+
         }
 
         /// <summary>
@@ -249,21 +251,16 @@ namespace BPFacialRecognition {
         /// Updates UserInterface list of whitelisted users from the list of Visitor objects (WhitelistedVisitors)
         /// </summary>
         private void UpdateWhitelistedVisitorsGrid() {
-            // Reset source to empty list
             WhitelistedUsersGrid.ItemsSource = new List<Visitor>();
-            // Set source of WhitelistedUsersGrid to the whitelistedVisitors list
             WhitelistedUsersGrid.ItemsSource = this.whitelistedVisitors;
-
-            // Hide Oxford loading ring
             OxfordLoadingRing.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
         /// Triggered when the user selects a visitor in the WhitelistedUsersGrid 
         /// </summary>
-        private void WhitelistedUsersGrid_ItemClick(object sender, ItemClickEventArgs e) {
-            // Navigate to UserProfilePage, passing through the selected Visitor object and the initialized WebcamHelper as a parameter
-            this.Frame.Navigate(typeof(UserProfilePage), new UserProfileObject(e.ClickedItem as Visitor, this.webcam));
+        private async void WhitelistedUsersGrid_ItemClick(object sender, ItemClickEventArgs e) {
+            this.Frame.Navigate(typeof(UserProfilePage), new UserProfileObject(e.ClickedItem as Visitor, this.camera));
         }
 
         /// <summary>

@@ -403,30 +403,20 @@ namespace BPFacialRecognition.FacialRecognition {
         }
 
         public async Task<bool> RemovePersonFromWhitelistAsync(string personName) {
-            bool isSuccess = true;
-
             var personId = _whitelist.GetPersonIdByName(personName);
-            if (personId == Guid.Empty) {
-                isSuccess = false;
-            }
-            else {
-                // remove all faces belongs to this person
-                var faceIds = _whitelist.GetAllFaceIdsByPersonId(personId);
-                if (faceIds != null) {
-                    var faceIdsArr = faceIds.ToArray();
-                    for (int i = 0; i < faceIdsArr.Length; i++) {
-                        await RemoveFace(personId, faceIdsArr[i]);
-                    }
+            if (personId == Guid.Empty) return false;
+
+            // remove all faces belongs to this person
+            var faceIds = _whitelist.GetAllFaceIdsByPersonId(personId);
+            if (faceIds != null) {
+                var faceIdsArr = faceIds.ToArray();
+                for (int i = 0; i < faceIdsArr.Length; i++) {
+                    await RemoveFace(personId, faceIdsArr[i]);
                 }
-
-                // remove person
-                await RemovePerson(personId);
-
-                // train whitelist
-                isSuccess = await TrainingWhitelistAsync();
             }
 
-            return isSuccess;
+            await RemovePerson(personId);
+            return await TrainingWhitelistAsync();
         }
         #endregion
 

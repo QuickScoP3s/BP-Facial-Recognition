@@ -11,7 +11,7 @@
     <AssemblyName>BPFacialRecognition</AssemblyName>
     <DefaultLanguage>en-US</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
-    <TargetPlatformVersion>10.0.16299.0</TargetPlatformVersion>
+    <TargetPlatformVersion>10.0.18362.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <LangVersion>8.0</LangVersion>
@@ -115,7 +115,7 @@
     <Compile Include="Facial Recognition\HSPerson.cs" />
     <Compile Include="Facial Recognition\IFaceRecognizer.cs" />
     <Compile Include="Helpers\FaceAPIHelper.cs" />
-    <Compile Include="Helpers\WebcamHelper.cs" />
+    <Compile Include="Helpers\CameraHelper.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
@@ -169,15 +169,6 @@
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.ApplicationInsights">
-      <Version>2.15.0-beta1</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.ApplicationInsights.PersistenceChannel">
-      <Version>2.0.0-beta3</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.ApplicationInsights.WindowsApps">
-      <Version>1.1.1</Version>
-    </PackageReference>
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
       <Version>6.2.10</Version>
     </PackageReference>

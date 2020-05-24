@@ -2,8 +2,10 @@
 
 using System;
 using System.Diagnostics;
-
+using System.Threading.Tasks;
+using Windows.Media.Capture;
 using Windows.Storage;
+using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
@@ -16,9 +18,12 @@ namespace BPFacialRecognition {
     /// An empty page that can be used on its own or navigated to within a Frame.
     /// </summary>
     public sealed partial class NewUserPage : Page {
-        private WebcamHelper webcam;
 
+        private CameraHelper camera;
         private StorageFile currentIdPhotoFile;
+
+        private bool CanPreview => (this.camera != null && this.camera.Initialized) && this.camera.MediaCapture != null;
+        private bool IsPreviewing => WebcamFeed.Source != null;
 
         public NewUserPage() {
             this.InitializeComponent();
@@ -40,7 +45,7 @@ namespace BPFacialRecognition {
         protected override void OnNavigatedTo(NavigationEventArgs e) {
             try {
                 //Sets passed through WecamHelper from MainPage as local webcam object
-                this.webcam = e.Parameter as WebcamHelper;
+                this.camera = e.Parameter as CameraHelper;
             }
             catch (Exception exception) {
                 Debug.WriteLine("Error when navigating to NewUserPage: " + exception.Message);
@@ -51,12 +56,43 @@ namespace BPFacialRecognition {
         /// Triggered when the webcam feed control is loaded. Sets up the live webcam feed.
         /// </summary>
         private async void WebcamFeed_Loaded(object sender, RoutedEventArgs e) {
-            WebcamFeed.Source = this.webcam.mediaCapture;
-
-            // Check to make sure MediaCapture isn't null before attempting to start preview. Will be null if no camera is attached.
-            if (WebcamFeed.Source != null) {
-                await this.webcam.StartCameraPreview();
+            if (!IsPreviewing) {
+                try {
+                    await StartPreviewAsync();
+                }
+                catch (Exception) {
+                    this.camera.MediaCapture.CaptureDeviceExclusiveControlStatusChanged += MediaCapture_CaptureDeviceExclusiveControlStatusChanged;
+                }
             }
+        }
+
+        private async Task StartPreviewAsync() {
+            WebcamFeed.Source = this.camera.MediaCapture;
+            await this.camera.StartCameraPreview();
+        }
+
+        private async void MediaCapture_CaptureDeviceExclusiveControlStatusChanged(Windows.Media.Capture.MediaCapture sender, Windows.Media.Capture.MediaCaptureDeviceExclusiveControlStatusChangedEventArgs args) {
+            if (args.Status == MediaCaptureDeviceExclusiveControlStatus.ExclusiveControlAvailable && !IsPreviewing) {
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () => {
+                    await StartPreviewAsync();
+                });
+            }
+        }
+
+        /// <summary>
+        /// Cleanup resource access to the camera
+        /// </summary>
+        /// <returns></returns>
+        private async Task CleanupCameraAsync() {
+            if (CanPreview) {
+                if (IsPreviewing)
+                    await this.camera.StopCameraPreview();
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => {
+                    WebcamFeed.Source = null;
+                });
+            }
+
         }
 
         /// <summary>
@@ -67,8 +103,10 @@ namespace BPFacialRecognition {
             CaptureButton.Visibility = Visibility.Collapsed;
 
             // Capture current frame from webcam, store it in temporary storage and set the source of a BitmapImage to said photo
-            this.currentIdPhotoFile = await this.webcam.CapturePhoto();
-            var photoStream = await this.currentIdPhotoFile.OpenAsync(FileAccessMode.ReadWrite);
+            this.currentIdPhotoFile = await this.camera.CapturePhoto();
+
+            using var photoStream = await this.currentIdPhotoFile.OpenAsync(FileAccessMode.ReadWrite);
+
             BitmapImage idPhotoImage = new BitmapImage();
             await idPhotoImage.SetSourceAsync(photoStream);
 
@@ -82,10 +120,6 @@ namespace BPFacialRecognition {
             DisabledFeedGrid.Visibility = Visibility.Collapsed;
 
             UserNameGrid.Visibility = Visibility.Visible;
-
-
-            // Dispose photo stream
-            photoStream.Dispose();
         }
 
         /// <summary>
@@ -95,18 +129,19 @@ namespace BPFacialRecognition {
             if (!string.IsNullOrWhiteSpace(UserNameBox.Text)) {
                 var picturesFolder = ApplicationData.Current.LocalCacheFolder;
                 StorageFolder whitelistFolder = await picturesFolder.CreateFolderAsync(GeneralConstants.WhiteListFolderName, CreationCollisionOption.OpenIfExists);
+                
                 // Create a folder to store this specific user's photos
                 StorageFolder currentFolder = await whitelistFolder.CreateFolderAsync(UserNameBox.Text, CreationCollisionOption.ReplaceExisting);
+                
                 // Move the already captured photo the user's folder
                 await this.currentIdPhotoFile.MoveAsync(currentFolder);
 
-                // Add user to Oxford database
                 FaceAPIHelper.AddUserToWhitelist(UserNameBox.Text, currentFolder);
 
-                // Stop live camera feed
-                await this.webcam.StopCameraPreview();
+                await this.camera.StopCameraPreview();
+
                 // Navigate back to MainPage
-                this.Frame.Navigate(typeof(MainPage));
+                this.Frame.GoBack();
             }
         }
 
@@ -114,20 +149,15 @@ namespace BPFacialRecognition {
         /// Triggered when the Cancel Photo button is clicked by the user. Resets page.
         /// </summary>
         private void CancelButton_Click(object sender, RoutedEventArgs e) {
-            // Collapse the confirm photo buttons and open the capture photo button.
             CaptureButton.Visibility = Visibility.Visible;
             UserNameGrid.Visibility = Visibility.Collapsed;
             UserNameBox.Text = "";
 
-            // Open the webcam feed or disabled camera feed
-            if (GeneralConstants.DisableLiveCameraFeed) {
+            if (GeneralConstants.DisableLiveCameraFeed)
                 DisabledFeedGrid.Visibility = Visibility.Visible;
-            }
-            else {
+            else
                 WebcamFeed.Visibility = Visibility.Visible;
-            }
 
-            // Collapse the photo control:
             IdPhotoControl.Visibility = Visibility.Collapsed;
         }
 
@@ -135,11 +165,10 @@ namespace BPFacialRecognition {
         /// Triggered when the "Back" button is clicked by the user
         /// </summary>
         private async void BackButton_Click(object sender, RoutedEventArgs e) {
-            // Stop the camera preview
-            await this.webcam.StopCameraPreview();
+            await CleanupCameraAsync();
 
-            // Navigate back to the MainPage
-            this.Frame.Navigate(typeof(MainPage));
+            // Navigate back to MainPage
+            this.Frame.GoBack();
         }
     }
 }

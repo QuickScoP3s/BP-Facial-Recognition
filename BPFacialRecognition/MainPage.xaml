@@ -45,7 +45,7 @@
                 <RowDefinition Height="8*" />
             </Grid.RowDefinitions>
 
-            <TextBlock x:Name="VisitorsTitleBlock" HorizontalAlignment="Center" TextWrapping="Wrap" Text="Whitelisted Visitors" VerticalAlignment="Center" FontSize="33.333"/>
+            <TextBlock x:Name="VisitorsTitleBlock" HorizontalAlignment="Center" TextWrapping="Wrap" Text="Verified Users" VerticalAlignment="Center" FontSize="33.333"/>
             <GridView x:Name="WhitelistedUsersGrid" IsItemClickEnabled="True" Grid.Row="1" ItemClick="WhitelistedUsersGrid_ItemClick" Loaded="WhitelistedUsersGrid_Loaded" DataFetchSize="1">
                 <GridView.ItemTemplate>
                     <DataTemplate>
@@ -55,9 +55,10 @@
             </GridView>
             <ProgressRing x:Name="OxfordLoadingRing" Grid.Column="0" IsActive="True" Width="113" Height="80" Grid.RowSpan="2" Foreground="White"/>
         </Grid>
-        <TextBlock x:Name="WelcomeBlock" HorizontalAlignment="Center" Grid.Row="1" TextWrapping="Wrap" Text="Welcome to the Facial Recognition Door!" VerticalAlignment="Center" Grid.ColumnSpan="3" FontSize="53.333" Margin="50,0,50,100"/>
+        <TextBlock x:Name="WelcomeBlock" HorizontalAlignment="Center" Grid.Row="1" TextWrapping="Wrap" Text="Welcome!" VerticalAlignment="Center" Grid.ColumnSpan="3" FontSize="53.333" Margin="50,0,50,100"/>
         <TextBlock x:Name="DetailsBlock" HorizontalAlignment="Center" Grid.Row="1" TextWrapping="Wrap" Text="Press the + icon to add a whitelisted user and get started! When you're ready, hit the doorbell icon to try and unlock the door with your face!" VerticalAlignment="Center" Grid.ColumnSpan="3" FontSize="33.333" Margin="50,80,50,0" TextAlignment="Center"/>
     </Grid>
+    
     <Page.BottomAppBar>
         <CommandBar IsOpen="True" IsSticky="True" IsEnabled="True" Foreground="#FF7C3C3C">
             <AppBarButton x:Name="NewUserButton" Label="Add User" Icon="Add" Foreground="#FFFFFFFF" Width="64" Click="NewUserButton_Click"/>
